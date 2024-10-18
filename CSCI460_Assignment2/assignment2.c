@@ -7,36 +7,32 @@
 #define BUFFER_SIZE 50
 #define MAX_VALUE 100
 
-// Node structure for the doubly linked list
 typedef struct Node {
     int data;
     struct Node *prev, *next;
 } Node;
 
-// Doubly Linked List structure
+// Doubly Linked List
 typedef struct {
     Node *head, *tail;
     int size;
 } LinkedList;
 
-// Initialize mutex and condition variables
+// Initialize mutex and conditions
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t not_full = PTHREAD_COND_INITIALIZER;
 pthread_cond_t not_empty = PTHREAD_COND_INITIALIZER;
 
-// Function prototypes
 void add_node(LinkedList *list, int value);
 void remove_node(LinkedList *list, int odd);
 void *producer_1(void *arg);
 void *producer_2(void *arg);
 void *consumer_1(void *arg);
 void *consumer_2(void *arg);
-void print_list(LinkedList *list, const char *filename);
+void print_list(LinkedList *list, const char *filename, const char *action, int value);
 
-// Initialize the linked list
 LinkedList buffer = {NULL, NULL, 0};
 
-// Main function
 int main() {
     srand(time(NULL));
 
@@ -48,7 +44,6 @@ int main() {
     pthread_create(&cons1, NULL, consumer_1, NULL);
     pthread_create(&cons2, NULL, consumer_2, NULL);
 
-    // Wait for threads to finish
     pthread_join(prod1, NULL);
     pthread_join(prod2, NULL);
     pthread_join(cons1, NULL);
@@ -93,13 +88,12 @@ void add_node(LinkedList *list, int value) {
         }
     }
     list->size++;
-    print_list(list, value % 2 == 0 ? "producer_2_output.txt" : "producer_1_output.txt");
+    print_list(list, value % 2 == 0 ? "producer_2_output.txt" : "producer_1_output.txt", "Produced", value);
 
     pthread_cond_signal(&not_empty);
     pthread_mutex_unlock(&mutex);
 }
 
-// Remove a node from the head of the linked list based on odd/even condition
 void remove_node(LinkedList *list, int odd) {
     pthread_mutex_lock(&mutex);
 
@@ -109,6 +103,7 @@ void remove_node(LinkedList *list, int odd) {
 
     Node *head = list->head;
     if ((odd && head->data % 2 == 1) || (!odd && head->data % 2 == 0)) {
+        int value = head->data;
         list->head = head->next;
         if (list->head) {
             list->head->prev = NULL;
@@ -117,7 +112,7 @@ void remove_node(LinkedList *list, int odd) {
         }
         list->size--;
         free(head);
-        print_list(list, odd ? "consumer_1_output.txt" : "consumer_2_output.txt");
+        print_list(list, odd ? "consumer_1_output.txt" : "consumer_2_output.txt", "Consumed", value);
     }
 
     pthread_cond_signal(&not_full);
@@ -166,9 +161,13 @@ void *consumer_2(void *arg) {
     return NULL;
 }
 
-// Print the current state of the linked list to a file
-void print_list(LinkedList *list, const char *filename) {
+void print_list(LinkedList *list, const char *filename, const char *action, int value) {
     FILE *f = fopen(filename, "a");
+    if (f == NULL) {
+        perror("Failed to open file");
+        return;
+    }
+    fprintf(f, "%s: %d\n", action, value);
     Node *current = list->head;
     fprintf(f, "Buffer: ");
     while (current != NULL) {
